@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 语音合成助手</title>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --border-color: #e2e8f0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            text-align: center;
+            color: var(--primary-color);
+        }
+
+        .input-group {
+            margin-bottom: 1.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            resize: vertical;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            ring: 2px solid var(--primary-color);
+        }
+
+        select, .range-wrapper {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: white;
+            font-size: 0.9rem;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #speakButton {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        #speakButton:hover {
+            background-color: var(--primary-hover);
+        }
+
+        #speakButton:active {
+            transform: scale(0.98);
+        }
+
+        #stopButton {
+            background-color: #fee2e2;
+            color: #ef4444;
+        }
+
+        #stopButton:hover {
+            background-color: #fecaca;
+        }
+
+        /* 播放状态动画 */
+        .is-speaking {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.4); }
+            70% { box-shadow: 0 0 0 10px rgba(79, 70, 229, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(79, 70, 229, 0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>文字转语音</h1>
+    
+    <div class="input-group">
+        <label for="textInput">待转换文字</label>
+        <textarea id="textInput" rows="5" placeholder="请输入你想说的内容..."></textarea>
+    </div>
+
+    <div class="input-group">
+        <label for="voiceSelect">选择音色</label>
+        <select id="voiceSelect"></select>
+    </div>
+
+    <div class="controls-grid">
+        <div class="input-group">
+            <label>语速: <span id="rateVal">1</span></label>
+            <input type="range" id="rate" min="0.5" max="2" value="1" step="0.1" style="width:100%">
+        </div>
+        <div class="input-group">
+            <label>音调: <span id="pitchVal">1</span></label>
+            <input type="range" id="pitch" min="0" max="2" value="1" step="0.1" style="width:100%">
+        </div>
+    </div>
+
+    <div class="button-group">
+        <button id="speakButton">开始播放</button>
+        <button id="stopButton">停止</button>
+    </div>
+</div>
+
+<script>
+    const synth = window.speechSynthesis;
+    const textInput = document.getElementById('textInput');
+    const voiceSelect = document.getElementById('voiceSelect');
+    const speakButton = document.getElementById('speakButton');
+    const stopButton = document.getElementById('stopButton');
+    const rateInput = document.getElementById('rate');
+    const pitchInput = document.getElementById('pitch');
+
+    let voices = [];
+
+    function loadVoices() {
+        voices = synth.getVoices();
+        // 优先显示中文和英文
+        voiceSelect.innerHTML = voices
+            .map((voice, i) => `<option value="${i}">${voice.name} (${voice.lang})</option>`)
+            .join('');
+    }
+
+    // 初始化加载
+    loadVoices();
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    // 更新数值显示
+    [rateInput, pitchInput].forEach(input => {
+        input.addEventListener('input', (e) => {
+            document.getElementById(`${e.target.id}Val`).textContent = e.target.value;
+        });
+    });
+
+    speakButton.addEventListener('click', () => {
+        if (synth.speaking) {
+            console.error('正在播放中...');
+            return;
+        }
+
+        if (textInput.value !== '') {
+            const utterance = new SpeechSynthesisUtterance(textInput.value);
+            
+            // 设置属性
+            utterance.voice = voices[voiceSelect.value];
+            utterance.rate = rateInput.value;
+            utterance.pitch = pitchInput.value;
+
+            // 事件监听
+            utterance.onstart = () => {
+                speakButton.classList.add('is-speaking');
+                speakButton.textContent = '正在播放...';
+            };
+
+            utterance.onend = () => {
+                speakButton.classList.remove('is-speaking');
+                speakButton.textContent = '开始播放';
+            };
+
+            synth.speak(utterance);
+        }
+    });
+
+    stopButton.addEventListener('click', () => {
+        synth.cancel();
+        speakButton.classList.remove('is-speaking');
+        speakButton.textContent = '开始播放';
+    });
+</script>
+
+</body>
+</html>
